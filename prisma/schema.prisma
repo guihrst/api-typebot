@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id                   Int       @id @default(autoincrement())
+  cnpj                 String    @unique
+  nome                 String
+  nome_fantasia        String?
+  colunas_tabela_dados Json      @default("[]")
+  token                String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  
+  // Campos de autenticação do cliente
+  email_cliente        String?   @unique
+  senha_cliente        String?   // Hash bcrypt
+  
+  created_at           DateTime  @default(now())
+  updated_at           DateTime?
+
+  arquivos EmpresaArquivo[]
+  dados    EmpresaDado[]
+  pessoas  EmpresaPessoa[]
+
+  @@map("empresas")
+}
+
+model EmpresaArquivo {
+  id         Int       @id @default(autoincrement())
+  empresa    Empresa   @relation(fields: [empresa_id], references: [id])
+  empresa_id Int
+  link       String
+  created_at DateTime  @default(now())
+  updated_at DateTime?
+
+  @@map("empresas_arquivos")
+}
+
+model EmpresaDado {
+  id         Int      @id @default(autoincrement())
+  empresa    Empresa  @relation(fields: [empresa_id], references: [id])
+  empresa_id Int
+  dados      Json     @default("{}")
+  created_at DateTime @default(now())
+
+  @@map("empresas_dados")
+}
+
+// Nova tabela para CPFs/CNPJs (substitui o Excel)
+model EmpresaPessoa {
+  id         Int       @id @default(autoincrement())
+  empresa    Empresa   @relation(fields: [empresa_id], references: [id])
+  empresa_id Int
+  cpf_cnpj   String    // Somente números, armazenado como string para preservar zeros à esquerda
+  nome       String
+  ativo      Boolean   @default(true)
+  created_at DateTime  @default(now())
+  updated_at DateTime?
+
+  @@unique([empresa_id, cpf_cnpj]) // CPF/CNPJ único por empresa
+  @@index([empresa_id, cpf_cnpj])  // Índice para busca rápida
+  @@map("empresas_pessoas")
+}

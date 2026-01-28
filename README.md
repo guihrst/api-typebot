@@ -1,136 +1,100 @@
-# API Typebot - Sistema de Gestão de Dados
+# API Typebot - Portal do Cliente
 
-Sistema de gestão de dados para empresas integrado ao Typebot, com portal de autogestão para clientes.
-
-## 📋 Funcionalidades
-
-### Para Administradores (Clerk)
-- Dashboard para visualização de dados coletados
-- Filtros por nome, CPF e período
-- Exportação para Excel
-
-### Para Clientes (Portal de Autogestão)
-- Login com email e senha
-- Cadastro de CPFs/CNPJs
-- Edição e exclusão de cadastros
-- Ativação/desativação de registros
-
-### APIs para Typebot
-- `/api/empresas/consulta-cpf` - Consulta se CPF/CNPJ está cadastrado
-- `/api/empresas/envio-dados` - Recebe dados coletados pelo chatbot
+Sistema de gestão de CPF/CNPJ para clientes, integrado ao Typebot.
 
 ---
 
-## 🚀 Instalação
+## 🚀 Instalação Rápida (Docker)
 
-### Pré-requisitos
-- Node.js 18+
-- PostgreSQL
-- Yarn ou NPM
-
-### 1. Clonar e instalar dependências
+### 1. Clone o repositório
 
 ```bash
-git clone <repositorio>
+git clone https://github.com/SEU_USUARIO/api-typebot.git
 cd api-typebot
-yarn install
 ```
 
-### 2. Configurar variáveis de ambiente
+### 2. Configure o ambiente
 
 ```bash
 cp env.example .env
+nano .env
 ```
 
-Edite o arquivo `.env`:
+Edite o arquivo `.env` e preencha:
+- Suas chaves do **Clerk** (pegue em https://clerk.com)
+- Uma **JWT_SECRET** segura
 
-```env
-# Clerk (admin)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_xxxxx
-CLERK_SECRET_KEY=sk_xxxxx
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-
-# Banco de dados
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/api_typebot
-
-# IMPORTANTE: Gere uma chave segura para produção!
-JWT_SECRET=sua-chave-secreta-muito-segura-aqui
-```
-
-### 3. Executar migrations do banco
+### 3. Suba os containers
 
 ```bash
-npx prisma migrate deploy
-npx prisma generate
+docker compose up -d
 ```
 
-### 4. Iniciar aplicação
+### 4. Pronto! 🎉
 
-```bash
-# Desenvolvimento
-yarn dev
+Acesse: `http://SEU_IP:5000`
 
-# Produção
-yarn build
-yarn start
-```
-
-A aplicação estará disponível em `http://localhost:5000`.
+- Portal Admin: `/sign-in` (login Clerk)
+- Portal Cliente: `/cliente/login`
 
 ---
 
-## 👤 Configurar Acesso do Cliente
-
-Para criar um acesso para o cliente gerenciar seus CPFs/CNPJs:
+## 📋 Comandos Úteis
 
 ```bash
-npx ts-node scripts/criar-acesso-cliente.ts <empresa_id> <email> <senha>
+# Ver logs
+docker compose logs -f app
+
+# Reiniciar
+docker compose restart app
+
+# Parar tudo
+docker compose down
+
+# Rebuild após mudanças
+docker compose up -d --build
 ```
 
-**Exemplo:**
+---
+
+## 👤 Criar Acesso do Cliente
+
 ```bash
-npx ts-node scripts/criar-acesso-cliente.ts 1 cliente@empresa.com senhaSegura123
+docker compose exec app npx ts-node scripts/criar-acesso-cliente.ts 1 email@cliente.com senha123
 ```
 
-O cliente poderá acessar: `https://seu-dominio.com/cliente/login`
+Ou use o script auxiliar:
+```bash
+chmod +x comandos.sh
+./comandos.sh criar-acesso 1 email@cliente.com senha123
+```
 
 ---
 
 ## 📥 Migrar Dados do Excel
 
-Para importar CPFs/CNPJs de um arquivo Excel existente:
-
+1. Copie o Excel para o container:
 ```bash
-npx ts-node scripts/migrar-excel.ts <empresa_id> <caminho_do_excel>
+docker cp clientes.xlsx api-typebot-app:/app/clientes.xlsx
 ```
 
-**Exemplo:**
+2. Execute a migração:
 ```bash
-npx ts-node scripts/migrar-excel.ts 1 dados_clientes.xlsx
+docker compose exec app npx ts-node scripts/migrar-excel.ts 1 /app/clientes.xlsx
 ```
-
-**Formato do Excel:**
-| CPF | NOME |
-|-----|------|
-| 12345678901 | João Silva |
-| 00012345678901 | Maria Santos |
-
-> O script aceita CPF ou CNPJ, valida os dígitos verificadores e ignora duplicados.
 
 ---
 
-## 🔌 APIs
+## 🔌 APIs para Typebot
 
-### Consulta CPF/CNPJ
-
-Verifica se um CPF/CNPJ está cadastrado para a empresa.
+### Consultar CPF/CNPJ
 
 ```http
 GET /api/empresas/consulta-cpf?cpf=12345678901
-Authorization: <token-da-empresa>
+Authorization: TOKEN_DA_EMPRESA
 ```
 
-**Resposta de sucesso (200):**
+**Resposta:**
 ```json
 {
   "found": true,
@@ -139,128 +103,57 @@ Authorization: <token-da-empresa>
 }
 ```
 
-**Resposta não encontrado (404):**
-```json
-{
-  "found": false,
-  "error": "Person not found"
-}
-```
-
-### Envio de Dados
-
-Recebe dados coletados pelo Typebot.
+### Enviar Dados
 
 ```http
 POST /api/empresas/envio-dados
-Authorization: <token-da-empresa>
+Authorization: TOKEN_DA_EMPRESA
 Content-Type: application/json
 
 {
   "nome": "João Silva",
-  "cpf": "12345678901",
-  "campo_customizado": "valor"
+  "cpf": "12345678901"
 }
 ```
 
 ---
 
-## 📁 Estrutura do Projeto
+## 🔐 Portas
 
+| Serviço | Porta |
+|---------|-------|
+| Aplicação | 5000 |
+| PostgreSQL | 5433 |
+
+---
+
+## 🐛 Problemas Comuns
+
+### Container não inicia
+```bash
+docker compose logs app
 ```
-src/
-├── app/
-│   ├── api/
-│   │   ├── cliente/           # APIs do portal do cliente
-│   │   │   ├── auth/          # Login, logout, verificação
-│   │   │   └── pessoas/       # CRUD de CPFs/CNPJs
-│   │   └── empresas/          # APIs para Typebot
-│   │       ├── consulta-cpf/  # Consulta CPF/CNPJ
-│   │       ├── envio-dados/   # Recebe dados
-│   │       └── filtragem/     # Listagem (admin)
-│   ├── cliente/               # Páginas do portal do cliente
-│   │   ├── login/
-│   │   └── dashboard/
-│   ├── list/                  # Dashboard admin
-│   └── sign-in/               # Login admin (Clerk)
-├── lib/
-│   ├── prisma.ts              # Cliente Prisma
-│   ├── auth-cliente.ts        # Helpers de autenticação
-│   └── utils.ts               # Utilitários
-└── middleware.ts              # Proteção de rotas
 
-scripts/
-├── criar-acesso-cliente.ts    # Criar login do cliente
-└── migrar-excel.ts            # Importar dados do Excel
+### Erro de conexão com banco
+```bash
+docker compose restart postgres
+docker compose restart app
+```
 
-prisma/
-├── schema.prisma              # Modelo do banco
-└── migrations/                # Histórico de migrations
+### Rebuild completo
+```bash
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ---
 
-## 🗄️ Modelo do Banco de Dados
+## 📁 Estrutura
 
 ```
-empresas
-├── id
-├── cnpj
-├── nome
-├── nome_fantasia
-├── colunas_tabela_dados (JSON)
-├── token (UUID) ─────────────────> Autenticação API Typebot
-├── email_cliente ────────────────> Login portal cliente
-├── senha_cliente (hash bcrypt)
-├── created_at
-└── updated_at
-
-empresas_pessoas (NOVO!)
-├── id
-├── empresa_id ───────────────────> FK empresas
-├── cpf_cnpj (string) ────────────> Somente números
-├── nome
-├── ativo (boolean)
-├── created_at
-└── updated_at
+/cliente/login      → Login do cliente
+/cliente/dashboard  → Gerenciar CPFs/CNPJs
+/list               → Dashboard admin (Clerk)
+/sign-in            → Login admin
 ```
-
----
-
-## 🔐 Segurança
-
-- **Admin (Clerk):** Autenticação OAuth via Clerk
-- **Cliente:** JWT com cookie httpOnly
-- **API Typebot:** Token UUID por empresa
-- **Senhas:** Hash bcrypt com salt
-
----
-
-## 📝 Changelog
-
-### v2.0.0 - Portal do Cliente
-- ✅ Nova tabela `empresas_pessoas` para substituir Excel
-- ✅ Portal de login do cliente
-- ✅ CRUD de CPFs/CNPJs pelo cliente
-- ✅ Validação de CPF e CNPJ
-- ✅ Máscara de formatação no frontend
-- ✅ API `/consulta-cpf` agora usa banco (mais rápido!)
-- ✅ Script de migração de dados do Excel
-- ✅ Script para criar acesso do cliente
-
----
-
-## 🆘 Suporte
-
-Em caso de dúvidas ou problemas, verifique:
-
-1. As variáveis de ambiente estão corretas?
-2. O banco de dados está acessível?
-3. As migrations foram executadas?
-4. A chave JWT_SECRET foi definida?
-
----
-
-## 📄 Licença
-
-Projeto privado.
