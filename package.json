@@ -1,0 +1,53 @@
+{
+  "name": "api-typebot-new",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "PORT=5000 next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.19.1",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.2.0",
+    "@mantine/core": "^8.2.4",
+    "@mantine/dates": "^8.2.4",
+    "@mantine/hooks": "^8.2.4",
+    "@prisma/client": "^6.7.0",
+    "@radix-ui/react-avatar": "^1.1.9",
+    "@radix-ui/react-collapsible": "^1.1.10",
+    "@radix-ui/react-dialog": "^1.1.13",
+    "@radix-ui/react-dropdown-menu": "^2.1.14",
+    "@radix-ui/react-label": "^2.1.6",
+    "@radix-ui/react-separator": "^1.1.6",
+    "@radix-ui/react-slot": "^1.2.2",
+    "@radix-ui/react-tooltip": "^1.2.6",
+    "antd": "^5.25.1",
+    "axios": "^1.9.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.13",
+    "lucide-react": "^0.509.0",
+    "next": "^14.2.31",
+    "react": "^18",
+    "react-dom": "^18",
+    "tailwind-merge": "^3.2.0",
+    "tailwindcss-animate": "^1.0.7",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "^16.0.8",
+    "postcss": "^8",
+    "prisma": "^6.14.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
