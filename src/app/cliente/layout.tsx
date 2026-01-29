@@ -1,14 +1,7 @@
-import { MantineProvider } from '@mantine/core';
-import '@mantine/core/styles.css';
-
 export default function ClienteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <MantineProvider>
-      {children}
-    </MantineProvider>
-  );
+  return children;
 }

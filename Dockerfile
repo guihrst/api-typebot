@@ -13,7 +13,7 @@ RUN apk add --no-cache libc6-compat openssl
 COPY package.json yarn.lock ./
 
 # Instalar dependências
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
 # Copiar código fonte
 COPY . .

@@ -1,44 +1,21 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Container,
-  Paper,
-  Title,
-  Text,
-  Button,
-  TextInput,
-  Table,
-  Group,
-  ActionIcon,
-  Modal,
-  Switch,
-  Alert,
-  Loader,
-  Pagination,
-  Badge,
-  Flex,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import axios from 'axios';
 
 interface Pessoa {
   id: number;
   cpf_cnpj: string;
   nome: string;
   ativo: boolean;
-  created_at: string;
 }
 
 interface Empresa {
   id: number;
   nome: string;
-  nome_fantasia: string | null;
   email_cliente: string;
 }
 
-// Função para formatar CPF/CNPJ
 function formatarCpfCnpj(valor: string): string {
   if (valor.length === 11) {
     return valor.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
@@ -48,400 +25,236 @@ function formatarCpfCnpj(valor: string): string {
   return valor;
 }
 
-// Função para máscara de CPF/CNPJ durante digitação
-function aplicarMascaraCpfCnpj(valor: string): string {
-  const numeros = valor.replace(/\D/g, '');
-  
-  if (numeros.length <= 11) {
-    // Máscara de CPF
-    return numeros
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  } else {
-    // Máscara de CNPJ
-    return numeros
-      .replace(/(\d{2})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-  }
-}
-
 export default function ClienteDashboard() {
   const router = useRouter();
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingTable, setLoadingTable] = useState(false);
   const [erro, setErro] = useState('');
-  const [sucesso, setSucesso] = useState('');
 
-  // Paginação
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const pageSize = 15;
-
-  // Busca
-  const [busca, setBusca] = useState('');
-
-  // Modal de adicionar/editar
-  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
-  const [editando, setEditando] = useState<Pessoa | null>(null);
+  // Modal
+  const [showModal, setShowModal] = useState(false);
   const [formNome, setFormNome] = useState('');
   const [formCpfCnpj, setFormCpfCnpj] = useState('');
-  const [formAtivo, setFormAtivo] = useState(true);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  // Modal de confirmação de exclusão
-  const [deleteModalOpened, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
-  const [pessoaParaExcluir, setPessoaParaExcluir] = useState<Pessoa | null>(null);
-  const [excluindo, setExcluindo] = useState(false);
-
-  // Verificar autenticação
   useEffect(() => {
     verificarAuth();
   }, []);
 
-  // Carregar dados quando mudar página ou busca
-  useEffect(() => {
-    if (empresa) {
-      carregarPessoas();
-    }
-  }, [page, empresa]);
-
   const verificarAuth = async () => {
     try {
-      const response = await axios.get('/api/cliente/auth/me');
-      setEmpresa(response.data.empresa);
-    } catch (error) {
+      const res = await fetch('/api/cliente/auth/me');
+      if (!res.ok) {
+        router.push('/cliente/login');
+        return;
+      }
+      const data = await res.json();
+      setEmpresa(data.empresa);
+      carregarPessoas();
+    } catch {
       router.push('/cliente/login');
+    }
+  };
+
+  const carregarPessoas = async () => {
+    try {
+      const res = await fetch('/api/cliente/pessoas');
+      const data = await res.json();
+      setPessoas(data.data || []);
+    } catch {
+      setErro('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
   };
 
-  const carregarPessoas = useCallback(async () => {
-    setLoadingTable(true);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-      });
-
-      if (busca) {
-        params.append('busca', busca);
-      }
-
-      const response = await axios.get(`/api/cliente/pessoas?${params}`);
-      setPessoas(response.data.data);
-      setTotalPages(response.data.totalPages);
-      setTotal(response.data.total);
-    } catch (error: any) {
-      setErro('Erro ao carregar dados');
-    } finally {
-      setLoadingTable(false);
-    }
-  }, [page, busca, pageSize]);
-
-  const handleBuscar = () => {
-    setPage(1);
-    carregarPessoas();
-  };
-
-  const handleLimparBusca = () => {
-    setBusca('');
-    setPage(1);
-    // Recarregar sem busca
-    setTimeout(() => carregarPessoas(), 100);
-  };
-
   const handleLogout = async () => {
-    try {
-      await axios.post('/api/cliente/auth/logout');
-      router.push('/cliente/login');
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+    await fetch('/api/cliente/auth/logout', { method: 'POST' });
+    router.push('/cliente/login');
+  };
+
+  const abrirModal = (pessoa?: Pessoa) => {
+    if (pessoa) {
+      setEditandoId(pessoa.id);
+      setFormNome(pessoa.nome);
+      setFormCpfCnpj(formatarCpfCnpj(pessoa.cpf_cnpj));
+    } else {
+      setEditandoId(null);
+      setFormNome('');
+      setFormCpfCnpj('');
     }
-  };
-
-  const abrirModalAdicionar = () => {
-    setEditando(null);
-    setFormNome('');
-    setFormCpfCnpj('');
-    setFormAtivo(true);
-    openModal();
-  };
-
-  const abrirModalEditar = (pessoa: Pessoa) => {
-    setEditando(pessoa);
-    setFormNome(pessoa.nome);
-    setFormCpfCnpj(formatarCpfCnpj(pessoa.cpf_cnpj));
-    setFormAtivo(pessoa.ativo);
-    openModal();
+    setShowModal(true);
   };
 
   const handleSalvar = async () => {
     setSalvando(true);
-    setErro('');
-
     try {
       const dados = {
         nome: formNome,
-        cpf_cnpj: formCpfCnpj.replace(/\D/g, ''), // Enviar apenas números
-        ativo: formAtivo,
+        cpf_cnpj: formCpfCnpj.replace(/\D/g, ''),
       };
 
-      if (editando) {
-        await axios.put(`/api/cliente/pessoas/${editando.id}`, dados);
-        setSucesso('Cadastro atualizado com sucesso!');
+      const url = editandoId 
+        ? `/api/cliente/pessoas/${editandoId}`
+        : '/api/cliente/pessoas';
+      
+      const res = await fetch(url, {
+        method: editandoId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados),
+      });
+
+      if (res.ok) {
+        setShowModal(false);
+        carregarPessoas();
       } else {
-        await axios.post('/api/cliente/pessoas', dados);
-        setSucesso('Cadastro criado com sucesso!');
+        const data = await res.json();
+        setErro(data.error || 'Erro ao salvar');
       }
-
-      closeModal();
-      carregarPessoas();
-
-      // Limpar mensagem de sucesso após 3 segundos
-      setTimeout(() => setSucesso(''), 3000);
-    } catch (error: any) {
-      setErro(error.response?.data?.error || 'Erro ao salvar');
+    } catch {
+      setErro('Erro ao salvar');
     } finally {
       setSalvando(false);
     }
   };
 
-  const abrirModalExcluir = (pessoa: Pessoa) => {
-    setPessoaParaExcluir(pessoa);
-    openDeleteModal();
-  };
-
-  const handleExcluir = async () => {
-    if (!pessoaParaExcluir) return;
-
-    setExcluindo(true);
+  const handleExcluir = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir?')) return;
+    
     try {
-      await axios.delete(`/api/cliente/pessoas/${pessoaParaExcluir.id}`);
-      setSucesso('Cadastro excluído com sucesso!');
-      closeDeleteModal();
+      await fetch(`/api/cliente/pessoas/${id}`, { method: 'DELETE' });
       carregarPessoas();
-      setTimeout(() => setSucesso(''), 3000);
-    } catch (error: any) {
-      setErro(error.response?.data?.error || 'Erro ao excluir');
-    } finally {
-      setExcluindo(false);
+    } catch {
+      setErro('Erro ao excluir');
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader size="lg" />
+      <div style={{ padding: '50px', textAlign: 'center' }}>
+        Carregando...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <Container size="lg">
-        {/* Cabeçalho */}
-        <Paper withBorder shadow="sm" p="md" mb="lg">
-          <Flex justify="space-between" align="center">
-            <div>
-              <Title order={3}>{empresa?.nome_fantasia || empresa?.nome}</Title>
-              <Text c="dimmed" size="sm">{empresa?.email_cliente}</Text>
-            </div>
-            <Button variant="outline" color="red" onClick={handleLogout}>
-              Sair
-            </Button>
-          </Flex>
-        </Paper>
+    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>{empresa?.nome}</h2>
+          <small style={{ color: '#666' }}>{empresa?.email_cliente}</small>
+        </div>
+        <button onClick={handleLogout} style={{ padding: '8px 16px', cursor: 'pointer' }}>
+          Sair
+        </button>
+      </div>
 
-        {/* Alertas */}
-        {erro && (
-          <Alert color="red" mb="md" onClose={() => setErro('')} withCloseButton>
-            {erro}
-          </Alert>
-        )}
+      {erro && (
+        <div style={{ background: '#fee', color: '#c00', padding: '10px', marginBottom: '15px', borderRadius: '4px' }}>
+          {erro}
+          <button onClick={() => setErro('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
 
-        {sucesso && (
-          <Alert color="green" mb="md" onClose={() => setSucesso('')} withCloseButton>
-            {sucesso}
-          </Alert>
-        )}
+      {/* Botão Adicionar */}
+      <div style={{ marginBottom: '20px' }}>
+        <button 
+          onClick={() => abrirModal()}
+          style={{ padding: '10px 20px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          + Novo Cadastro
+        </button>
+      </div>
 
-        {/* Área de busca e ações */}
-        <Paper withBorder shadow="sm" p="md" mb="lg">
-          <Flex gap="md" align="flex-end" wrap="wrap">
-            <TextInput
-              label="Buscar"
-              placeholder="Nome ou CPF/CNPJ"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
-              style={{ flex: 1, minWidth: 200 }}
-            />
-            <Button variant="light" onClick={handleBuscar}>
-              Buscar
-            </Button>
-            <Button variant="subtle" onClick={handleLimparBusca}>
-              Limpar
-            </Button>
-            <Button onClick={abrirModalAdicionar}>
-              + Novo Cadastro
-            </Button>
-          </Flex>
-        </Paper>
-
-        {/* Tabela de pessoas */}
-        <Paper withBorder shadow="sm" p="md">
-          <Flex justify="space-between" align="center" mb="md">
-            <Title order={4}>Cadastros de CPF/CNPJ</Title>
-            <Badge size="lg" variant="light">
-              {total} registro{total !== 1 ? 's' : ''}
-            </Badge>
-          </Flex>
-
-          {loadingTable ? (
-            <div className="flex justify-center py-8">
-              <Loader />
-            </div>
-          ) : pessoas.length === 0 ? (
-            <Text c="dimmed" ta="center" py="xl">
-              Nenhum cadastro encontrado
-            </Text>
+      {/* Tabela */}
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: '#f5f5f5' }}>
+            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>CPF/CNPJ</th>
+            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Nome</th>
+            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Status</th>
+            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #ddd', width: '120px' }}>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pessoas.length === 0 ? (
+            <tr>
+              <td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                Nenhum cadastro encontrado
+              </td>
+            </tr>
           ) : (
-            <>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>CPF/CNPJ</Table.Th>
-                    <Table.Th>Nome</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th style={{ width: 120 }}>Ações</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {pessoas.map((pessoa) => (
-                    <Table.Tr key={pessoa.id}>
-                      <Table.Td style={{ fontFamily: 'monospace' }}>
-                        {formatarCpfCnpj(pessoa.cpf_cnpj)}
-                      </Table.Td>
-                      <Table.Td>{pessoa.nome}</Table.Td>
-                      <Table.Td>
-                        <Badge color={pessoa.ativo ? 'green' : 'gray'}>
-                          {pessoa.ativo ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap="xs">
-                          <ActionIcon
-                            variant="light"
-                            color="blue"
-                            onClick={() => abrirModalEditar(pessoa)}
-                            title="Editar"
-                          >
-                            ✏️
-                          </ActionIcon>
-                          <ActionIcon
-                            variant="light"
-                            color="red"
-                            onClick={() => abrirModalExcluir(pessoa)}
-                            title="Excluir"
-                          >
-                            🗑️
-                          </ActionIcon>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-
-              {totalPages > 1 && (
-                <Flex justify="center" mt="lg">
-                  <Pagination
-                    value={page}
-                    onChange={setPage}
-                    total={totalPages}
-                  />
-                </Flex>
-              )}
-            </>
+            pessoas.map((p) => (
+              <tr key={p.id}>
+                <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
+                  {formatarCpfCnpj(p.cpf_cnpj)}
+                </td>
+                <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{p.nome}</td>
+                <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                  <span style={{ 
+                    padding: '4px 8px', 
+                    borderRadius: '4px', 
+                    fontSize: '12px',
+                    background: p.ativo ? '#e6ffe6' : '#f0f0f0',
+                    color: p.ativo ? '#006600' : '#666'
+                  }}>
+                    {p.ativo ? 'Ativo' : 'Inativo'}
+                  </span>
+                </td>
+                <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                  <button onClick={() => abrirModal(p)} style={{ marginRight: '8px', cursor: 'pointer' }}>✏️</button>
+                  <button onClick={() => handleExcluir(p.id)} style={{ cursor: 'pointer' }}>🗑️</button>
+                </td>
+              </tr>
+            ))
           )}
-        </Paper>
+        </tbody>
+      </table>
 
-        {/* Modal de Adicionar/Editar */}
-        <Modal
-          opened={modalOpened}
-          onClose={closeModal}
-          title={editando ? 'Editar Cadastro' : 'Novo Cadastro'}
-          centered
-        >
-          <TextInput
-            label="CPF ou CNPJ"
-            placeholder="000.000.000-00 ou 00.000.000/0000-00"
-            value={formCpfCnpj}
-            onChange={(e) => setFormCpfCnpj(aplicarMascaraCpfCnpj(e.target.value))}
-            maxLength={18}
-            required
-            mb="md"
-          />
+      {/* Modal */}
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', padding: '30px', borderRadius: '8px', width: '400px' }}>
+            <h3 style={{ marginTop: 0 }}>{editandoId ? 'Editar' : 'Novo'} Cadastro</h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>CPF ou CNPJ</label>
+              <input
+                type="text"
+                value={formCpfCnpj}
+                onChange={(e) => setFormCpfCnpj(e.target.value)}
+                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+              />
+            </div>
 
-          <TextInput
-            label="Nome"
-            placeholder="Nome completo"
-            value={formNome}
-            onChange={(e) => setFormNome(e.target.value)}
-            required
-            mb="md"
-          />
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Nome</label>
+              <input
+                type="text"
+                value={formNome}
+                onChange={(e) => setFormNome(e.target.value)}
+                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+              />
+            </div>
 
-          <Switch
-            label="Cadastro ativo"
-            checked={formAtivo}
-            onChange={(e) => setFormAtivo(e.currentTarget.checked)}
-            mb="lg"
-          />
-
-          <Group justify="flex-end">
-            <Button variant="light" onClick={closeModal}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSalvar} loading={salvando}>
-              Salvar
-            </Button>
-          </Group>
-        </Modal>
-
-        {/* Modal de Confirmação de Exclusão */}
-        <Modal
-          opened={deleteModalOpened}
-          onClose={closeDeleteModal}
-          title="Confirmar Exclusão"
-          centered
-          size="sm"
-        >
-          <Text mb="lg">
-            Tem certeza que deseja excluir o cadastro de{' '}
-            <strong>{pessoaParaExcluir?.nome}</strong>?
-          </Text>
-          <Text c="dimmed" size="sm" mb="lg">
-            CPF/CNPJ: {pessoaParaExcluir && formatarCpfCnpj(pessoaParaExcluir.cpf_cnpj)}
-          </Text>
-
-          <Group justify="flex-end">
-            <Button variant="light" onClick={closeDeleteModal}>
-              Cancelar
-            </Button>
-            <Button color="red" onClick={handleExcluir} loading={excluindo}>
-              Excluir
-            </Button>
-          </Group>
-        </Modal>
-      </Container>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowModal(false)} style={{ padding: '10px 20px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSalvar} 
+                disabled={salvando}
+                style={{ padding: '10px 20px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                {salvando ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,8 +2,6 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { TextInput, Button, Paper, Title, Text, Container, Alert } from '@mantine/core';
-import axios from 'axios';
 
 export default function ClienteLogin() {
   const router = useRouter();
@@ -18,64 +16,112 @@ export default function ClienteLogin() {
     setErro('');
 
     try {
-      const response = await axios.post('/api/cliente/auth/login', {
-        email,
-        senha,
+      const response = await fetch('/api/cliente/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha }),
       });
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (response.ok) {
         router.push('/cliente/dashboard');
+      } else {
+        setErro(data.error || 'Erro ao fazer login');
       }
-    } catch (error: any) {
-      setErro(error.response?.data?.error || 'Erro ao fazer login');
+    } catch (error) {
+      setErro('Erro ao conectar com o servidor');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <Container size={420}>
-        <Paper withBorder shadow="md" p={30} radius="md">
-          <Title order={2} ta="center" mb="md">
-            Portal do Cliente
-          </Title>
-          <Text c="dimmed" size="sm" ta="center" mb="lg">
-            Faça login para gerenciar seus cadastros
-          </Text>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '40px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        width: '100%',
+        maxWidth: '400px'
+      }}>
+        <h1 style={{ textAlign: 'center', marginBottom: '24px' }}>
+          Portal do Cliente
+        </h1>
 
-          {erro && (
-            <Alert color="red" mb="md" onClose={() => setErro('')} withCloseButton>
-              {erro}
-            </Alert>
-          )}
+        {erro && (
+          <div style={{
+            backgroundColor: '#fee',
+            color: '#c00',
+            padding: '12px',
+            borderRadius: '4px',
+            marginBottom: '16px'
+          }}>
+            {erro}
+          </div>
+        )}
 
-          <form onSubmit={handleSubmit}>
-            <TextInput
-              label="Email"
-              placeholder="seu@email.com"
-              required
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '4px' }}>Email</label>
+            <input
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              mb="md"
-            />
-
-            <TextInput
-              label="Senha"
-              type="password"
-              placeholder="Sua senha"
               required
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '16px'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', marginBottom: '4px' }}>Senha</label>
+            <input
+              type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              mb="lg"
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '16px'
+              }}
             />
+          </div>
 
-            <Button type="submit" fullWidth loading={loading}>
-              Entrar
-            </Button>
-          </form>
-        </Paper>
-      </Container>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '12px',
+              backgroundColor: '#0070f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1
+            }}
+          >
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
