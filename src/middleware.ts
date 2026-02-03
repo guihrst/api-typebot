@@ -1,30 +1,30 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
-
-// Rotas protegidas pelo Clerk (admin)
-const isProtectedRoute = createRouteMatcher(['/list(.*)'])
+import { NextResponse, NextRequest } from 'next/server'
 
 // Rotas do cliente (não devem passar pelo Clerk)
-const isClienteRoute = createRouteMatcher(['/cliente(.*)', '/api/cliente(.*)'])
+const clienteRoutes = ['/cliente', '/api/cliente']
 
-export default clerkMiddleware(async (auth, req) => {
-  // Ignorar rotas do cliente - elas têm autenticação própria
-  if (isClienteRoute(req)) {
+export default function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname
+  
+  // Se for rota do cliente, ignora completamente o Clerk
+  if (clienteRoutes.some(route => path.startsWith(route))) {
     return NextResponse.next()
   }
-
-  const { userId, redirectToSignIn } = await auth()
-
-  if (!userId && isProtectedRoute(req)) {
-    return redirectToSignIn({ returnBackUrl: req.url })
-  }
-})
+  
+  // Para outras rotas, usa o Clerk
+  return clerkMiddleware(async (auth, req) => {
+    const isProtectedRoute = createRouteMatcher(['/list(.*)'])
+    const { userId, redirectToSignIn } = await auth()
+    if (!userId && isProtectedRoute(req)) {
+      return redirectToSignIn({ returnBackUrl: req.url })
+    }
+  })(req, {} as any)
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
     '/(api|trpc)(.*)',
   ],
 }

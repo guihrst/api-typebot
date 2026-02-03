@@ -32,6 +32,14 @@ export default function ClienteDashboard() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
 
+  // Paginação e Pesquisa
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [busca, setBusca] = useState('');
+  const [buscaInput, setBuscaInput] = useState('');
+  const porPagina = 15;
+
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [formNome, setFormNome] = useState('');
@@ -43,6 +51,12 @@ export default function ClienteDashboard() {
     verificarAuth();
   }, []);
 
+  useEffect(() => {
+    if (empresa) {
+      carregarPessoas();
+    }
+  }, [pagina, busca, empresa]);
+
   const verificarAuth = async () => {
     try {
       const res = await fetch('/api/cliente/auth/me');
@@ -52,7 +66,6 @@ export default function ClienteDashboard() {
       }
       const data = await res.json();
       setEmpresa(data.empresa);
-      carregarPessoas();
     } catch {
       router.push('/cliente/login');
     }
@@ -60,14 +73,35 @@ export default function ClienteDashboard() {
 
   const carregarPessoas = async () => {
     try {
-      const res = await fetch('/api/cliente/pessoas');
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: pagina.toString(),
+        pageSize: porPagina.toString(),
+      });
+      if (busca) params.append('busca', busca);
+
+      const res = await fetch(`/api/cliente/pessoas?${params}`);
       const data = await res.json();
       setPessoas(data.data || []);
+      setTotalPaginas(data.totalPages || 1);
+      setTotal(data.total || 0);
     } catch {
       setErro('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePesquisar = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPagina(1);
+    setBusca(buscaInput);
+  };
+
+  const handleLimparBusca = () => {
+    setBuscaInput('');
+    setBusca('');
+    setPagina(1);
   };
 
   const handleLogout = async () => {
@@ -96,10 +130,10 @@ export default function ClienteDashboard() {
         cpf_cnpj: formCpfCnpj.replace(/\D/g, ''),
       };
 
-      const url = editandoId 
+      const url = editandoId
         ? `/api/cliente/pessoas/${editandoId}`
         : '/api/cliente/pessoas';
-      
+
       const res = await fetch(url, {
         method: editandoId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,7 +156,7 @@ export default function ClienteDashboard() {
 
   const handleExcluir = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir?')) return;
-    
+
     try {
       await fetch(`/api/cliente/pessoas/${id}`, { method: 'DELETE' });
       carregarPessoas();
@@ -130,14 +164,6 @@ export default function ClienteDashboard() {
       setErro('Erro ao excluir');
     }
   };
-
-  if (loading) {
-    return (
-      <div style={{ padding: '50px', textAlign: 'center' }}>
-        Carregando...
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
@@ -159,74 +185,138 @@ export default function ClienteDashboard() {
         </div>
       )}
 
-      {/* Botão Adicionar */}
-      <div style={{ marginBottom: '20px' }}>
-        <button 
+      {/* Pesquisa e Botão Adicionar */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <button
           onClick={() => abrirModal()}
           style={{ padding: '10px 20px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >
           + Novo Cadastro
         </button>
+
+        <form onSubmit={handlePesquisar} style={{ display: 'flex', gap: '10px', flex: 1, minWidth: '300px' }}>
+          <input
+            type="text"
+            placeholder="Pesquisar por nome ou CPF/CNPJ..."
+            value={buscaInput}
+            onChange={(e) => setBuscaInput(e.target.value)}
+            style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+          />
+          <button type="submit" style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Buscar
+          </button>
+          {busca && (
+            <button type="button" onClick={handleLimparBusca} style={{ padding: '10px 20px', background: '#999', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              Limpar
+            </button>
+          )}
+        </form>
+      </div>
+
+      {/* Info de resultados */}
+      <div style={{ marginBottom: '10px', color: '#666', fontSize: '14px' }}>
+        {busca ? `Resultados para "${busca}": ` : ''}Total: {total} cadastros
       </div>
 
       {/* Tabela */}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#f5f5f5' }}>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>CPF/CNPJ</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Nome</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Status</th>
-            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #ddd', width: '120px' }}>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pessoas.length === 0 ? (
-            <tr>
-              <td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                Nenhum cadastro encontrado
-              </td>
+      {loading ? (
+        <div style={{ padding: '50px', textAlign: 'center' }}>Carregando...</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>CPF/CNPJ</th>
+              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Nome</th>
+              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Status</th>
+              <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #ddd', width: '120px' }}>Ações</th>
             </tr>
-          ) : (
-            pessoas.map((p) => (
-              <tr key={p.id}>
-                <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
-                  {formatarCpfCnpj(p.cpf_cnpj)}
-                </td>
-                <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{p.nome}</td>
-                <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
-                  <span style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: '4px', 
-                    fontSize: '12px',
-                    background: p.ativo ? '#e6ffe6' : '#f0f0f0',
-                    color: p.ativo ? '#006600' : '#666'
-                  }}>
-                    {p.ativo ? 'Ativo' : 'Inativo'}
-                  </span>
-                </td>
-                <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                  <button onClick={() => abrirModal(p)} style={{ marginRight: '8px', cursor: 'pointer' }}>✏️</button>
-                  <button onClick={() => handleExcluir(p.id)} style={{ cursor: 'pointer' }}>🗑️</button>
+          </thead>
+          <tbody>
+            {pessoas.length === 0 ? (
+              <tr>
+                <td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                  {busca ? 'Nenhum resultado encontrado' : 'Nenhum cadastro encontrado'}
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              pessoas.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
+                    {formatarCpfCnpj(p.cpf_cnpj)}
+                  </td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{p.nome}</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: p.ativo ? '#e6ffe6' : '#f0f0f0',
+                      color: p.ativo ? '#006600' : '#666'
+                    }}>
+                      {p.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                    <button onClick={() => abrirModal(p)} style={{ marginRight: '8px', cursor: 'pointer' }}>✏️</button>
+                    <button onClick={() => handleExcluir(p.id)} style={{ cursor: 'pointer' }}>🗑️</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      )}
+
+      {/* Paginação */}
+      {totalPaginas > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
+          <button
+            onClick={() => setPagina(1)}
+            disabled={pagina === 1}
+            style={{ padding: '8px 12px', cursor: pagina === 1 ? 'not-allowed' : 'pointer', opacity: pagina === 1 ? 0.5 : 1 }}
+          >
+            ⏮️
+          </button>
+          <button
+            onClick={() => setPagina(p => Math.max(1, p - 1))}
+            disabled={pagina === 1}
+            style={{ padding: '8px 12px', cursor: pagina === 1 ? 'not-allowed' : 'pointer', opacity: pagina === 1 ? 0.5 : 1 }}
+          >
+            ◀️ Anterior
+          </button>
+          <span style={{ padding: '8px 16px', background: '#f5f5f5', borderRadius: '4px' }}>
+            Página {pagina} de {totalPaginas}
+          </span>
+          <button
+            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+            disabled={pagina === totalPaginas}
+            style={{ padding: '8px 12px', cursor: pagina === totalPaginas ? 'not-allowed' : 'pointer', opacity: pagina === totalPaginas ? 0.5 : 1 }}
+          >
+            Próxima ▶️
+          </button>
+          <button
+            onClick={() => setPagina(totalPaginas)}
+            disabled={pagina === totalPaginas}
+            style={{ padding: '8px 12px', cursor: pagina === totalPaginas ? 'not-allowed' : 'pointer', opacity: pagina === totalPaginas ? 0.5 : 1 }}
+          >
+            ⏭️
+          </button>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '8px', width: '400px' }}>
             <h3 style={{ marginTop: 0 }}>{editandoId ? 'Editar' : 'Novo'} Cadastro</h3>
-            
+
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px' }}>CPF ou CNPJ</label>
               <input
                 type="text"
                 value={formCpfCnpj}
                 onChange={(e) => setFormCpfCnpj(e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -236,7 +326,7 @@ export default function ClienteDashboard() {
                 type="text"
                 value={formNome}
                 onChange={(e) => setFormNome(e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -244,8 +334,8 @@ export default function ClienteDashboard() {
               <button onClick={() => setShowModal(false)} style={{ padding: '10px 20px', cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button 
-                onClick={handleSalvar} 
+              <button
+                onClick={handleSalvar}
                 disabled={salvando}
                 style={{ padding: '10px 20px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
               >
